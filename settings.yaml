@@ -13,6 +13,7 @@ provider:
 models:
   analyst: "deepseek-flash"
   editor: "deepseek-flash"   # 想要更强的成稿可换 deepseek-v4-pro
+  keeper: ""                 # 留空复用 analyst
 
 vault: vault             # v1 Keeper 使用
 

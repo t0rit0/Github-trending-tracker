@@ -11,7 +11,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from trending_tracker import analyst, config, editor, scout
+from trending_tracker import analyst, config, editor, keeper, scout
 
 REPORTS = Path("reports")
 SNAPSHOTS = Path("data/snapshots")
@@ -50,10 +50,13 @@ async def run() -> int:
     merged = [{**e, "analysis": done.get(e["full_name"])} for e in diff["new"] + diff["staying"]]
     ok, total = sum(a is not None for a in done.values()), len(merged)
 
-    # 3) Editor
+    # 3) Keeper：更新仓库笔记（同日重跑幂等），历史基于更新前的旧笔记
+    keep = await keeper.update_all(settings, merged, diff["dropped"], today)
+
+    # 4) Editor
     REPORTS.mkdir(parents=True, exist_ok=True)
-    digest = editor.build_digest(today, settings.interests.model_dump(), merged, diff["dropped"])
-    status_ok = f"抓取 ✓ {len(snap['repos'])} 仓库 | 分析 {ok}/{total}"
+    digest = editor.build_digest(today, settings.interests.model_dump(), merged, diff["dropped"], history=keep["history"])
+    status_ok = f"抓取 ✓ {len(snap['repos'])} 仓库 | 分析 {ok}/{total} | 笔记 {keep['notes_updated']} 篇"
     try:
         body = await editor.compose(settings, digest)
         status = f"\n\n---\n**运行状态**：{status_ok} | Editor ✓\n"

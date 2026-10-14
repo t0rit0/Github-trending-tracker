@@ -25,6 +25,7 @@ class Provider(BaseModel):
 class Models(BaseModel):
     analyst: str = ""
     editor: str = ""
+    keeper: str = ""   # 留空则复用 analyst 模型
 
 
 class Interests(BaseModel):

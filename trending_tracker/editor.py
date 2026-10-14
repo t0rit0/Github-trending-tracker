@@ -35,6 +35,8 @@ def make_agent(settings: Settings) -> Agent[None, str]:
             f"严格遵循这个骨架（小节顺序与标题一字不变，TL;DR 用无序列表）：\n{SKELETON}\n"
             "规则：兴趣相关（见 interests）的排前面、写详细；无关的一笔带过；"
             "analysis 为 null 的仓库降级为一行纯数据（链接+星数+语言），不要虚构分析；"
+            "带 history 的仓库是老面孔（哪怕 days=1 也是再次上榜）：在榜变化里提一句上次见到的时间"
+            "（last_seen）与当时的定位（one_liner），对比今天有什么不同，别当新面孔介绍；"
             "掉榜部分每仓库一行。只输出 Markdown 正文，不要代码围栏。"
         ),
     )
@@ -50,16 +52,18 @@ async def compose(settings: Settings, digest: dict) -> str:
     return result.output
 
 
-def build_digest(date: str, interests: dict, entries: list[dict], dropped: list[dict]) -> dict:
+def build_digest(date: str, interests: dict, entries: list[dict], dropped: list[dict], history: dict | None = None) -> dict:
     """把带分析的当日条目压成给 Editor 的紧凑输入（纯函数，可测）。
 
     entries 已含 analysis 字段；days==1 归新上榜，>1 归在榜。
+    history 来自 Keeper 更新前的旧笔记：{full_name: {last_seen, days_on_list, one_liner}}。
     """
     def row(e: dict) -> dict:
         out = {k: e.get(k) for k in ("full_name", "url", "description", "language", "stars", "stars_today", "days", "stars_delta")}
         a = e.get("analysis")
         # analysis 统一为 dict（落盘/读回的形态），不收 pydantic 对象
         out["analysis"] = {k: a[k] for k in ("one_liner", "why_care", "tags")} if a else None
+        out["history"] = (history or {}).get(e["full_name"])
         return out
 
     return {
