@@ -11,7 +11,6 @@ from .config import Settings, make_model
 
 
 class RepoAnalysis(BaseModel):
-    full_name: str
     one_liner: str   # 一句话定位：这是什么
     why_care: str    # 为什么值得关注
     tags: list[str]  # 2-4 个小写英文领域标签

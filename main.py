@@ -41,14 +41,16 @@ async def run() -> int:
     if analyses_path.exists():
         done = json.loads(analyses_path.read_text(encoding="utf-8"))
     todo = [e for e in diff["new"] + diff["staying"] if e["full_name"] not in done]
-    analyzed = []
     if todo:
-        analyzed = await analyst.analyze_all(settings, todo)
-        done.update({r["full_name"]: r["analysis"].model_dump() for r in analyzed if r["analysis"]})
+        try:
+            analyzed = await analyst.analyze_all(settings, todo)
+            done.update({r["full_name"]: r["analysis"].model_dump() for r in analyzed if r["analysis"]})
+        except Exception as e:  # 配置级失败（如 key 缺失）：全部降级为数据行，日报照出；单仓库失败在 analyze_all 内已各自降级
+            print(f"! Analyst 失败：{type(e).__name__}: {e}")
     ANALYSES.mkdir(parents=True, exist_ok=True)
     analyses_path.write_text(json.dumps(done, ensure_ascii=False, indent=2), encoding="utf-8")
     merged = [{**e, "analysis": done.get(e["full_name"])} for e in diff["new"] + diff["staying"]]
-    ok, total = sum(a is not None for a in done.values()), len(merged)
+    ok, total = sum(1 for e in merged if e["analysis"]), len(merged)
 
     # 3) Keeper：更新仓库笔记（同日重跑幂等），历史基于更新前的旧笔记
     keep = await keeper.update_all(settings, merged, diff["dropped"], today)
