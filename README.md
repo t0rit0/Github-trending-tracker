@@ -1,74 +1,68 @@
 # GitHub Trending Tracker
 
-每天定时抓取 GitHub Trending，四个角色接力（Scout → Analyst×N → Keeper → Editor）产出一份中文 Markdown 日报；每个仓库的长期记忆沉淀在 `vault/` 的 Obsidian 风格笔记里——第二天再见到同一个仓库，日报会记得上次是怎么评价它的，不再当新面孔介绍。
+每日定时采集 GitHub Trending，经多智能体流水线（Scout → Analyst ×N → Keeper → Editor）生成结构化中文日报；仓库级长期记忆以 Obsidian 兼容笔记沉淀于 `vault/`，跨日上下文（连续在榜天数、历史定位）自动注入后续分析——同一仓库再次上榜时不会被当作新面孔重复介绍。
 
 ## 快速开始
 
-前置：[uv](https://docs.astral.sh/uv/)（Python ≥3.13 由它自动管理）。
+前置依赖：[uv](https://docs.astral.sh/uv/)（自动管理 Python ≥3.13）。
 
 ```bash
 git clone https://github.com/t0rit0/Github-trending-tracker.git
 cd Github-trending-tracker
-uv sync                                   # 装依赖（自动建 .venv）
-cp .env.example .env                      # 然后填入你的 API key
-cp interests.yaml.example interests.yaml  # 可选：写下兴趣，日报按此排序详略
+uv sync                                   # 安装依赖并创建虚拟环境
+cp .env.example .env                      # 配置 API key
+cp interests.yaml.example interests.yaml  # 可选：兴趣画像，驱动日报的过滤与排序
 ```
 
-`.env` 至少需要：
+`.env` 至少需要 `LLM_API_KEY`（任意 OpenAI 兼容端点）。接入端点与模型在 `settings.yaml` 的 `provider` / `models` 中配置，默认 DeepSeek `deepseek-flash`。
 
-```
-LLM_API_KEY=sk-...      # 任意 OpenAI 兼容端点的 key
-```
-
-端点与模型在 `settings.yaml` 的 `provider` / `models` 里改（默认 DeepSeek 的 `deepseek-flash`）。
-
-## 跑一次，看结果
+## 运行与产物
 
 ```bash
 uv run main.py
 ```
 
-一次运行依次做四件事：抓取榜单并对比昨日快照 → 并行分析每个仓库 → 更新 vault 长期笔记 → 撰写日报。跑完去这些地方看：
+流水线依次执行：采集榜单并与前一日快照做差分 → 并行生成各仓库结构化分析 → 更新长期记忆笔记 → 汇总撰写日报。运行产物：
 
-| 想看什么 | 在哪 |
+| 产物 | 路径 |
 |---|---|
-| **当日日报**（主要产物） | `reports/YYYY-MM-DD.md`（样例见 `reports/EXAMPLE.md`） |
-| 仓库长期记忆 | `vault/repos/{owner}/{repo}.md`：frontmatter 存结构化状态，正文按日期追加条目 |
-| 原始快照（diff 的事实来源） | `data/snapshots/YYYY-MM-DD.json` |
-| 当日分析缓存（重跑不重复花钱） | `data/analyses/YYYY-MM-DD.json` |
+| 日报（主要交付物） | `reports/YYYY-MM-DD.md`（样例见 `reports/EXAMPLE.md`） |
+| 仓库长期记忆 | `vault/repos/{owner}/{repo}.md`：frontmatter 存结构化状态，正文按日期追加 |
+| 榜单快照（差分基准） | `data/snapshots/YYYY-MM-DD.json` |
+| 当日分析缓存 | `data/analyses/YYYY-MM-DD.json`，幂等重跑时直接复用 |
 
-日报骨架固定：**TL;DR**（最值得看的 3-5 条）→ **新上榜**（一句话定位 + 为什么值得关注）→ **在榜变化**（连续天数、星数变化、与上次分析相比有什么新东西）→ **掉榜**（一行带过）。文末运行状态行（如 `抓取 ✓ 9 仓库 | 分析 9/9 | 笔记 9 篇 | Editor ✓`）概览当次质量，✗ 表示该环节已降级（见下节）。
+日报采用固定骨架：**TL;DR** → **新上榜** → **在榜变化** → **掉榜**；文末运行状态行汇总采集规模、分析成功率、笔记更新数及各环节健康度（✓/✗）。
 
-同日重跑安全：已有分析的仓库不再调模型，笔记不追加重复条目，日报覆盖重写。
+同日重跑幂等：已分析的仓库不重复调用模型，笔记不产生重复条目，日报覆盖更新。
 
-## 每天自动跑（Windows）
+## 定时调度（Windows）
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/install_task.ps1
 ```
 
-按 `settings.yaml` 的 `schedule.time`（默认 08:00）注册计划任务；关机/休眠错过的班次会在下次可用时补跑。取消：`Unregister-ScheduledTask -TaskName trending-tracker`。
+按 `settings.yaml` 的 `schedule.time`（默认 08:00）注册计划任务；因关机/休眠错过的触发会在下次可用时补偿执行。注销任务：`Unregister-ScheduledTask -TaskName trending-tracker`。
 
-## 配置一览
+## 配置
 
-| 文件 | 管什么 | 入库吗 |
+| 文件 | 职责 | 是否入库 |
 |---|---|---|
-| `settings.yaml` | 抓取窗口与语言、provider、模型、vault 路径、任务时间 | ✅ |
-| `interests.yaml` | 兴趣（languages / topics / keywords），日报据此排序与取舍详略 | ❌（模板 `interests.yaml.example`） |
+| `settings.yaml` | 采集窗口与语言、模型接入、vault 路径、调度时间 | ✅ |
+| `interests.yaml` | 兴趣画像（languages / topics / keywords） | ❌（模板 `interests.yaml.example`） |
 | `.env` | `LLM_API_KEY`；可选 `GITHUB_COOKIE` | ❌（模板 `.env.example`） |
 
-匿名抓取每天只有 ~9 个仓库是已知现状（ADR-0001）；想拿全量 25 个，把浏览器登录 GitHub 的 cookie 整串填进 `GITHUB_COOKIE`。
+未认证请求仅能获取部分榜单（约 9 个/日）；如需完整榜单，将浏览器会话 Cookie 整串配置至 `GITHUB_COOKIE` 即可启用。
 
-## 失败时的样子（降级设计）
+## 故障降级
 
-- **抓取失败**：写占位日报（`今日抓取失败：原因`），退出码 1；
-- **单仓库分析失败**：该仓库在日报里退化为纯数据行（链接 + 星数 + 语言），不影响其他仓库；
-- **Editor 失败**：用确定性模板渲染纯数据版日报，退出码 1；快照与分析已落盘，重跑只重做 Editor。
+- **采集失败**：输出占位日报并返回非零退出码；
+- **单仓库分析失败**：该条目降级为数据行（链接、星数、语言），不阻塞其余仓库；
+- **编辑失败**：以确定性模板渲染数据版日报，返回非零退出码；快照与分析已持久化，重跑仅重做编辑阶段。
 
 ## 开发
 
 ```bash
-uv run pytest    # 全量测试，不调真实 LLM 与网络
+uv run pytest    # 全量测试，不依赖外部 LLM 与网络
 ```
 
-术语表见 `CONTEXT.md`，架构决策见 `docs/adr/`，工单见 `.scratch/trending-tracker/`。
+领域术语表见 `CONTEXT.md`。
