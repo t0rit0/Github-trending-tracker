@@ -10,4 +10,4 @@
 - **OpenAI Agents SDK**：非 OpenAI 模型是二等公民（多 provider 靠 beta 扩展）。
 - **LiteLLM + 自写**：备选。最透明，但结构化校验 + 重试需自己做。
 
-已知坑：GLM/DeepSeek 等 chat-completions 端点需显式用 `OpenAIChatModel`（v2 默认走 OpenAI Responses API）。
+已知坑：GLM/DeepSeek 等 chat-completions 端点需显式用 `OpenAIChatModel`（v2 默认走 OpenAI Responses API）。DeepSeek 思考模型（V4.1-Flash）额外拒绝强制 `tool_choice`（400），其 `response_format=json_schema` 也不可用，结构化输出最终用 `PromptedOutput`（schema 进提示词 + 文本解析 + 校验重试）——该模式不依赖服务端结构化输出特性，换任何 provider 都成立。

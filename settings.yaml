@@ -7,12 +7,12 @@ scrape:
   languages: [all]       # [all] 或 [python, rust, ...]
 
 provider:
-  base_url: ""           # OpenAI 兼容端点，如 https://open.bigmodel.cn/api/paas/v4
+  base_url: "https://api.deepseek.com"
   api_key_env: LLM_API_KEY
 
 models:
-  analyst: ""            # 高量批任务，选便宜快的
-  editor: ""             # 一次成稿，选强的
+  analyst: "deepseek-flash"
+  editor: "deepseek-flash"   # 想要更强的成稿可换 deepseek-v4-pro
 
 vault: vault             # v1 Keeper 使用
 
