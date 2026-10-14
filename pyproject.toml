@@ -1,7 +1,19 @@
 [project]
-name = "tmpproject"
+name = "trending-tracker"
 version = "0.1.0"
-description = "Add your description here"
+description = "GitHub Trending 多智能体日报系统"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "httpx>=0.27",
+    "beautifulsoup4>=4.12",
+    "pyyaml>=6.0",
+    "pydantic-ai-slim[openai]>=2.0",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
+[tool.pytest.ini_options]
+# 系统临时目录下 pytest-of-vic 的 ACL 损坏（WinError 5），临时目录固定在 repo 内
+addopts = "--basetemp=.pytest-tmp"

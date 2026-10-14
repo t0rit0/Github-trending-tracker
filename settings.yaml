@@ -1,0 +1,22 @@
+# 所有可变项集中在这一个文件。key 放 .env（如 LLM_API_KEY=sk-...）。
+schedule:
+  time: "08:00"
+
+scrape:
+  window: daily          # daily | weekly | monthly
+  languages: [all]       # [all] 或 [python, rust, ...]
+
+provider:
+  base_url: ""           # OpenAI 兼容端点，如 https://open.bigmodel.cn/api/paas/v4
+  api_key_env: LLM_API_KEY
+
+models:
+  analyst: ""            # 高量批任务，选便宜快的
+  editor: ""             # 一次成稿，选强的
+
+vault: vault             # v1 Keeper 使用
+
+interests:
+  languages: []
+  topics: []
+  keywords: []

@@ -8,3 +8,9 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Secrets
+.env
+
+# pytest temp (见 pyproject [tool.pytest.ini_options])
+.pytest-tmp/
