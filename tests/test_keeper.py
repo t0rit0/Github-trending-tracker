@@ -47,7 +47,7 @@ def test_staying_repo_history_and_rerun_idempotent(tmp_path, monkeypatch):
     assert body.count("## 2026-10-") == 2
     # 同日重跑：幂等，不再调用、不再追加
     out2 = __import__("asyncio").run(keeper.update_all(_settings(tmp_path), [_entry("o/r", days=2)], [], "2026-10-14"))
-    assert out2["notes_updated"] == 0
+    assert out2["notes_updated"] == 0 and out2["history"] == {}   # 重跑不重建 history（已知边界，次日自愈）
     _, body2 = keeper.load_note(keeper.note_path(tmp_path, "o/r"))
     assert body2 == body
 
@@ -62,3 +62,28 @@ def test_dropped_updates_status_without_llm(tmp_path, monkeypatch):
     fm, body = keeper.load_note(keeper.note_path(tmp_path, "o/r"))
     assert fm["status"] == "dropped"
     assert "掉榜" in body and fm["last_seen"] == "2026-10-14"  # last_seen 保持最后见到那天
+
+
+def test_note_path_layout(tmp_path):
+    assert keeper.note_path(tmp_path, "o/r") == tmp_path / "repos" / "o" / "r.md"
+
+
+def test_load_note_requires_frontmatter(tmp_path):
+    import pytest
+    p = tmp_path / "x.md"
+    p.write_text("# 没有_frontmatter", encoding="utf-8")
+    with pytest.raises(ValueError, match="frontmatter"):
+        keeper.load_note(p)
+
+
+def test_llm_failure_still_writes_fact_entry(tmp_path, monkeypatch):
+    # LLM 挂了：frontmatter 照常更新，当日条目退化为纯事实一行（不丢当天数据）
+    class _Boom:
+        async def run(self, prompt):
+            raise RuntimeError("api down")
+
+    monkeypatch.setattr(keeper, "make_agent", lambda s: _Boom())
+    __import__("asyncio").run(keeper.update_all(_settings(tmp_path), [_entry("o/r")], [], "2026-10-14"))
+    fm, body = keeper.load_note(keeper.note_path(tmp_path, "o/r"))
+    assert fm["last_seen"] == "2026-10-14" and fm["one_liner"] == ""   # 定位回退为空，不编造
+    assert "## 2026-10-14" in body and "- 新上榜" in body

@@ -129,3 +129,55 @@ def test_fetch_retries_then_raises_scout_error(monkeypatch):
     with pytest.raises(scout.ScoutError, match="抓取失败"):
         scout.fetch("daily", ["all"])
     assert len(calls) == 3
+
+
+def test_fetch_zero_repos_raises_scout_error(monkeypatch):
+    # 页面结构改版 → 解析出 0 个仓库必须报错，而不是静默产出空快照
+    class _Resp:
+        text = "<html></html>"
+
+        def raise_for_status(self):
+            pass
+
+    monkeypatch.setattr(scout.httpx, "get", lambda *a, **k: _Resp())
+    with pytest.raises(scout.ScoutError, match="0 个仓库"):
+        scout.fetch("daily", ["all"])
+
+
+def test_parse_page_missing_fields_and_star_formats():
+    html = (
+        '<article class="Box-row"><h2><a href="/x/y"></a></h2>'
+        '<a href="/x/y/stargazers">1,234</a> 5,678 stars this week</article>'
+    )
+    repos = scout.parse_page(html)
+    r = repos[0]
+    assert r["full_name"] == "x/y" and r["url"] == "https://github.com/x/y"
+    assert r["stars"] == 1234 and r["stars_today"] == 5678   # 千分位逗号 + this week 变体
+    assert r["description"] == "" and r["language"] == ""    # 缺描述/缺语言 → 空串而非崩溃
+
+
+def test_run_first_day_all_new(tmp_path, monkeypatch):
+    # 无历史快照：全部新上榜，无在榜无掉榜；快照字段完整落盘
+    monkeypatch.setattr(scout, "fetch", lambda *a: [
+        {"rank": 1, "full_name": "a/a", "url": "", "description": "", "language": "Python",
+         "stars": 5, "stars_today": 5}])
+    out = scout.run(tmp_path, "daily", ["python"], today=date(2026, 10, 14))
+    assert out["diff"]["new"][0]["days"] == 1
+    assert not out["diff"]["staying"] and not out["diff"]["dropped"]
+    snap = json.loads((tmp_path / "2026-10-14.json").read_text(encoding="utf-8"))
+    assert snap["date"] == "2026-10-14" and snap["window"] == "daily" and snap["languages"] == ["python"]
+
+
+def test_run_compares_against_latest_prior_snapshot(tmp_path, monkeypatch):
+    # 漏跑一天（隔天快照）：基准是最近一份（10-13），不是更早的（10-12）
+    for d, days in (("2026-10-12", 2), ("2026-10-13", 5)):
+        (tmp_path / f"{d}.json").write_text(json.dumps(
+            {"date": d, "repos": [{"full_name": "a/a", "days": days, "stars": 100},
+                                  {"full_name": "old/old", "days": 1, "stars": 1}]}), encoding="utf-8")
+    monkeypatch.setattr(scout, "fetch", lambda *a: [
+        {"rank": 1, "full_name": "a/a", "url": "", "description": "", "language": "",
+         "stars": 110, "stars_today": 10}])
+    out = scout.run(tmp_path, "daily", ["all"], today=date(2026, 10, 14))
+    assert out["snapshot"]["repos"][0]["days"] == 6       # 5+1，若误用 10-12 会是 3
+    assert out["snapshot"]["repos"][0]["stars_delta"] == 10
+    assert [r["full_name"] for r in out["diff"]["dropped"]] == ["old/old"]

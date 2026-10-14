@@ -25,6 +25,8 @@ def test_build_digest_shapes_and_null_analysis():
     assert digest["new"][1]["analysis"] is None
     assert digest["new"][0]["history"]["last_seen"] == "2026-10-01"  # 老面孔带上历史
     assert digest["new"][1]["history"] is None
+    assert digest["interests"] == {"topics": ["agent"]}              # 兴趣配置透传给 Editor
+    assert digest["staying"][0]["history"] is None                   # 无历史仓库不带
     assert [e["full_name"] for e in digest["staying"]] == ["d/d"]
     assert digest["dropped"] == [{"full_name": "c/c", "stars": 100, "days": 4}]
     assert digest["analysis_failed"] == ["b/b", "d/d"]
@@ -36,3 +38,24 @@ def test_fallback_report_lists_repos():
     assert "[a/a](https://github.com/a/a)" in text
     assert "第 2 天" in text and "Δ5" in text
     assert "- c/c" in text
+
+
+def test_compose_sends_digest_to_agent(monkeypatch):
+    import asyncio
+
+    class _Run:
+        output = "正文"
+
+    class _FakeAgent:
+        def __init__(self):
+            self.prompt = None
+
+        async def run(self, prompt):
+            self.prompt = prompt
+            return _Run()
+
+    fake = _FakeAgent()
+    monkeypatch.setattr(editor, "make_agent", lambda s: fake)
+    out = asyncio.run(editor.compose(None, {"date": "2026-10-14"}))
+    assert out == "正文"
+    assert "今日数据" in fake.prompt and "2026-10-14" in fake.prompt
