@@ -16,10 +16,15 @@ def test_build_digest_shapes_and_null_analysis():
         {**_repo("b/b"), "analysis": None},
         {**_repo("d/d", days=2, stars_delta=5), "analysis": None},
     ]
-    digest = editor.build_digest("2026-10-14", {"topics": ["agent"]}, entries, [_repo("c/c", days=4)])
+    digest = editor.build_digest(
+        "2026-10-14", {"topics": ["agent"]}, entries, [_repo("c/c", days=4)],
+        history={"a/a": {"last_seen": "2026-10-01", "days_on_list": 5, "one_liner": "旧定位"}},
+    )
     assert [e["full_name"] for e in digest["new"]] == ["a/a", "b/b"]
     assert digest["new"][0]["analysis"]["one_liner"] == "x"
     assert digest["new"][1]["analysis"] is None
+    assert digest["new"][0]["history"]["last_seen"] == "2026-10-01"  # 老面孔带上历史
+    assert digest["new"][1]["history"] is None
     assert [e["full_name"] for e in digest["staying"]] == ["d/d"]
     assert digest["dropped"] == [{"full_name": "c/c", "stars": 100, "days": 4}]
     assert digest["analysis_failed"] == ["b/b", "d/d"]

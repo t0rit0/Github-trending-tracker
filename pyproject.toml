@@ -17,3 +17,5 @@ dev = ["pytest>=8.0"]
 [tool.pytest.ini_options]
 # 系统临时目录下 pytest-of-vic 的 ACL 损坏（WinError 5），临时目录固定在 repo 内
 addopts = "--basetemp=.pytest-tmp"
+# 项目未安装进 venv（无 build-system），不加这行 `uv run pytest` 导入不到包（python -m 只是碰巧能用）
+pythonpath = ["."]

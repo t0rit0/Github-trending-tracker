@@ -6,10 +6,8 @@ from pathlib import Path
 
 import yaml
 from pydantic import BaseModel
-
-
-class Schedule(BaseModel):
-    time: str = "08:00"
+from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.providers.openai import OpenAIProvider
 
 
 class Scrape(BaseModel):
@@ -35,7 +33,6 @@ class Interests(BaseModel):
 
 
 class Settings(BaseModel):
-    schedule: Schedule = Schedule()
     scrape: Scrape = Scrape()
     provider: Provider = Provider()
     models: Models = Models()
@@ -58,3 +55,15 @@ def load_env(path: Path = Path(".env")) -> None:
 def load(path: Path = Path("settings.yaml")) -> Settings:
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     return Settings(**data)
+
+
+def make_model(settings: Settings, name: str) -> OpenAIChatModel:
+    """模型构造单一入口（Analyst/Editor/Keeper 共用）。"""
+    # DeepSeek 等 chat-completions 端点必须显式 OpenAIChatModel：v2 默认走 OpenAI Responses API（ADR-0003）
+    return OpenAIChatModel(
+        name,
+        provider=OpenAIProvider(
+            base_url=settings.provider.base_url,
+            api_key=os.environ[settings.provider.api_key_env],
+        ),
+    )

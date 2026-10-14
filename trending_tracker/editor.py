@@ -2,13 +2,10 @@
 from __future__ import annotations
 
 import json
-import os
 
 from pydantic_ai import Agent
-from pydantic_ai.models.openai import OpenAIChatModel
-from pydantic_ai.providers.openai import OpenAIProvider
 
-from .config import Settings
+from .config import Settings, make_model
 
 SKELETON = (
     "# GitHub Trending 日报 · {date}\n\n"
@@ -20,15 +17,8 @@ SKELETON = (
 
 
 def make_agent(settings: Settings) -> Agent[None, str]:
-    model = OpenAIChatModel(
-        settings.models.editor,
-        provider=OpenAIProvider(
-            base_url=settings.provider.base_url,
-            api_key=os.environ[settings.provider.api_key_env],
-        ),
-    )
     return Agent(
-        model,
+        make_model(settings, settings.models.editor),
         output_type=str,
         instructions=(
             "你是技术日报编辑，读者是一位资深开发者。把提供的当日 GitHub trending 数据写成中文 Markdown 日报，"

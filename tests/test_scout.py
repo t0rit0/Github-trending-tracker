@@ -4,6 +4,8 @@ import re
 from datetime import date
 from pathlib import Path
 
+import pytest
+
 from trending_tracker import scout
 
 FIXTURE = Path(__file__).parent / "fixtures" / "trending.html"
@@ -112,3 +114,18 @@ def test_fetch_sends_cookie_when_set(monkeypatch):
     monkeypatch.delenv("GITHUB_COOKIE")
     scout.fetch("daily", ["all"])
     assert "Cookie" not in captured["headers"]
+
+
+def test_fetch_retries_then_raises_scout_error(monkeypatch):
+    # 无人值守任务的保命路径：连接错误重试 3 次才认输，并包成 ScoutError 交给 pipeline 降级
+    monkeypatch.setattr(scout.time, "sleep", lambda _s: None)
+    calls = []
+
+    def fake_get(*a, **kw):
+        calls.append(1)
+        raise scout.httpx.ConnectError("ssl eof")
+
+    monkeypatch.setattr(scout.httpx, "get", fake_get)
+    with pytest.raises(scout.ScoutError, match="抓取失败"):
+        scout.fetch("daily", ["all"])
+    assert len(calls) == 3

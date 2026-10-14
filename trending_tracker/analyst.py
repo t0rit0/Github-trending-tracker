@@ -2,15 +2,12 @@
 from __future__ import annotations
 
 import asyncio
-import os
 
 from pydantic import BaseModel
 from pydantic_ai import Agent
-from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.output import PromptedOutput
-from pydantic_ai.providers.openai import OpenAIProvider
 
-from .config import Settings
+from .config import Settings, make_model
 
 
 class RepoAnalysis(BaseModel):
@@ -21,16 +18,8 @@ class RepoAnalysis(BaseModel):
 
 
 def make_agent(settings: Settings) -> Agent[None, RepoAnalysis]:
-    # DeepSeek 等 chat-completions 端点必须显式 OpenAIChatModel：v2 默认走 OpenAI Responses API（ADR-0003）
-    model = OpenAIChatModel(
-        settings.models.analyst,
-        provider=OpenAIProvider(
-            base_url=settings.provider.base_url,
-            api_key=os.environ[settings.provider.api_key_env],
-        ),
-    )
     return Agent(
-        model,
+        make_model(settings, settings.models.analyst),
         # DeepSeek 思考模型：强制 tool_choice 被 400，json_schema response_format 也不可用；
         # prompted 模式把 schema 放进提示词、从回复文本解析 JSON 并校验重试，最可移植
         output_type=PromptedOutput(RepoAnalysis),

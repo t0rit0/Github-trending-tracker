@@ -7,18 +7,15 @@
 from __future__ import annotations
 
 import asyncio
-import os
 import re
 from pathlib import Path
 
 import yaml
 from pydantic import BaseModel
 from pydantic_ai import Agent
-from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.output import PromptedOutput
-from pydantic_ai.providers.openai import OpenAIProvider
 
-from .config import Settings
+from .config import Settings, make_model
 
 
 class KeeperEntry(BaseModel):
@@ -29,16 +26,8 @@ class KeeperEntry(BaseModel):
 
 def make_agent(settings: Settings) -> Agent[None, KeeperEntry]:
     # Keeper 是每仓库一次的高量调用，默认复用 analyst 的便宜模型（settings.models.keeper 可单独指定）
-    model_name = settings.models.keeper or settings.models.analyst
-    model = OpenAIChatModel(
-        model_name,
-        provider=OpenAIProvider(
-            base_url=settings.provider.base_url,
-            api_key=os.environ[settings.provider.api_key_env],
-        ),
-    )
     return Agent(
-        model,
+        make_model(settings, settings.models.keeper or settings.models.analyst),
         output_type=PromptedOutput(KeeperEntry),
         instructions=(
             "你是仓库观察员，为一个 GitHub 仓库维护长期笔记。根据旧笔记的历史条目和今日数据输出："
@@ -103,13 +92,15 @@ async def update_all(
         else:
             fm, body = {"full_name": full, "first_seen": today, "one_liner": "", "tags": []}, ""
         if has_entry_for(body, today):
-            return  # 同日重跑：今日条目已在，跳过
+            # shortcut: 同日重跑，当日掉榜又回榜的仓库不作修正、history 也不重建（次日自愈），重跑频繁再升级
+            return
 
         status = "新上榜" if entry.get("days", 1) == 1 else f"在榜第 {entry['days']} 天"
         a = entry.get("analysis") or {}
+        delta = f"，较昨日 Δ{entry['stars_delta']}" if entry.get("stars_delta") is not None else ""
         facts = (
             f"仓库：{full}\n今日状态：{status}\n"
-            f"总星 {entry.get('stars')}，今日 +{entry.get('stars_today')}，较昨日 Δ{entry.get('stars_delta')}\n"
+            f"总星 {entry.get('stars')}，今日 +{entry.get('stars_today')}{delta}\n"
             f"主语言：{entry.get('language') or '未知'}\n"
             f"今日分析定位：{a.get('one_liner', '（分析失败，无）')}\n"
             f"今日分析要点：{a.get('why_care', '（无）')}"
