@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import time
 from datetime import date
 from pathlib import Path
 
@@ -47,17 +49,27 @@ def _to_int(s: str | None) -> int | None:
 
 
 def fetch(window: str, languages: list[str]) -> list[dict]:
+    # 匿名请求只返回部分榜单（ADR-0001）；带登录 cookie（.env 的 GITHUB_COOKIE）可拿全量
+    headers = {"User-Agent": UA}
+    if os.environ.get("GITHUB_COOKIE"):
+        headers["Cookie"] = os.environ["GITHUB_COOKIE"]
     merged: dict[str, dict] = {}
     for lang in languages or ["all"]:
         url = TRENDING_URL if lang == "all" else f"{TRENDING_URL}/{lang}"
-        try:
-            resp = httpx.get(
-                url, params={"since": window},
-                headers={"User-Agent": UA}, follow_redirects=True, timeout=30,
-            )
-            resp.raise_for_status()
-        except httpx.HTTPError as e:
-            raise ScoutError(f"抓取失败 {url}: {e}") from e
+        resp = None
+        # 实测 github.com 偶发 SSL 断连（无人值守任务），重试 3 次再认输
+        for attempt in range(3):
+            try:
+                resp = httpx.get(
+                    url, params={"since": window},
+                    headers=headers, follow_redirects=True, timeout=30,
+                )
+                resp.raise_for_status()
+                break
+            except httpx.HTTPError as e:
+                if attempt == 2:
+                    raise ScoutError(f"抓取失败 {url}: {e}") from e
+                time.sleep(2 * (attempt + 1))
         repos = parse_page(resp.text)
         if not repos:
             raise ScoutError(f"解析到 0 个仓库：{url}（页面结构变了？）")

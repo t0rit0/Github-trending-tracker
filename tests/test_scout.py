@@ -54,3 +54,61 @@ def test_same_day_rerun_uses_previous_day(tmp_path, monkeypatch):
         {"rank": 1, "full_name": "a/a", "url": "", "description": "", "language": "", "stars": 110, "stars_today": 10}])
     out = scout.run(tmp_path, "daily", ["all"], today=date(2026, 10, 14))
     assert out["snapshot"]["repos"][0]["days"] == 3
+
+
+def _page_html(*full_names: str) -> str:
+    rows = "".join(
+        f'<article class="Box-row"><h2><a href="/{n}"></a></h2>'
+        f'<p>desc</p><span itemprop="programmingLanguage">Python</span>'
+        f'<a href="/{n}/stargazers">1,234</a> 56 stars today</article>'
+        for n in full_names)
+    return f"<html><body>{rows}</body></html>"
+
+
+def test_fetch_merges_languages_and_dedupes(monkeypatch):
+    calls = []
+
+    class _Resp:
+        def __init__(self, text):
+            self.text = text
+
+        def raise_for_status(self):
+            pass
+
+    def fake_get(url, params=None, headers=None, **kw):
+        calls.append((url, params))
+        pages = {
+            "https://github.com/trending/python": _Resp(_page_html("a/a", "b/b")),
+            "https://github.com/trending/rust": _Resp(_page_html("b/b", "c/c")),  # b/b 两边都上榜
+        }
+        return pages[url]
+
+    monkeypatch.setattr(scout.httpx, "get", fake_get)
+    repos = scout.fetch("daily", ["python", "rust"])
+    assert [c[0] for c in calls] == ["https://github.com/trending/python", "https://github.com/trending/rust"]
+    assert calls[0][1] == {"since": "daily"}
+    by_name = {r["full_name"]: r for r in repos}
+    assert set(by_name) == {"a/a", "b/b", "c/c"}
+    assert by_name["b/b"]["trending_in"] == ["python", "rust"]
+
+
+def test_fetch_sends_cookie_when_set(monkeypatch):
+    captured = {}
+
+    class _Resp:
+        text = _page_html("a/a")
+
+        def raise_for_status(self):
+            pass
+
+    def fake_get(url, params=None, headers=None, **kw):
+        captured["headers"] = headers
+        return _Resp()
+
+    monkeypatch.setattr(scout.httpx, "get", fake_get)
+    monkeypatch.setenv("GITHUB_COOKIE", "user_session=x")
+    scout.fetch("daily", ["all"])
+    assert captured["headers"]["Cookie"] == "user_session=x"
+    monkeypatch.delenv("GITHUB_COOKIE")
+    scout.fetch("daily", ["all"])
+    assert "Cookie" not in captured["headers"]
