@@ -12,5 +12,10 @@ wheels/
 # Secrets
 .env
 
+# 个人数据：兴趣配置与日报（示例见 interests.yaml.example / reports/EXAMPLE.md）
+interests.yaml
+reports/*
+!reports/EXAMPLE.md
+
 # pytest temp (见 pyproject [tool.pytest.ini_options])
 .pytest-tmp/

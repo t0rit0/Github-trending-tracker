@@ -9,5 +9,5 @@ uv run pytest            # 测试
 powershell -ExecutionPolicy Bypass -File scripts/install_task.ps1   # 注册每日计划任务
 ```
 
-- 配置：`settings.yaml`（语言/模型/provider/interests/时间）；API key 放 `.env`（参考 `.env.example`）。
+- 配置：`settings.yaml`（语言/模型/provider/时间）；兴趣放 `interests.yaml`（模板 `interests.yaml.example`，不入库）；API key 放 `.env`（参考 `.env.example`）；日报在 `reports/`（不入库，样例 `reports/EXAMPLE.md`）。
 - 术语见 `CONTEXT.md`；决策见 `docs/adr/`；工单见 `.scratch/trending-tracker/`。

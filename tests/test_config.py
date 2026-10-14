@@ -25,6 +25,17 @@ def test_load_defaults_on_empty_yaml(tmp_path):
     assert s.interests.languages == [] and s.interests.topics == []
 
 
+def test_load_reads_interests_side_file(tmp_path):
+    # 兴趣在独立的 interests.yaml（个人数据不入库），存在则覆盖默认空值
+    p = tmp_path / "settings.yaml"
+    p.write_text("", encoding="utf-8")
+    ip = tmp_path / "interests.yaml"
+    ip.write_text("topics: [agent, database]\nkeywords: [llm]\n", encoding="utf-8")
+    s = config.load(p, interests_path=ip)
+    assert s.interests.topics == ["agent", "database"] and s.interests.keywords == ["llm"]
+    assert s.interests.languages == []
+
+
 def test_load_env_sets_new_keys_and_keeps_existing(tmp_path, monkeypatch):
     p = tmp_path / ".env"
     p.write_text("# 注释\n\nLLM_API_KEY=sk-x\nGITHUB_COOKIE=\n", encoding="utf-8")

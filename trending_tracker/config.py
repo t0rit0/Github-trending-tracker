@@ -52,9 +52,13 @@ def load_env(path: Path = Path(".env")) -> None:
         os.environ.setdefault(key.strip(), value.strip())
 
 
-def load(path: Path = Path("settings.yaml")) -> Settings:
+def load(path: Path = Path("settings.yaml"), interests_path: Path = Path("interests.yaml")) -> Settings:
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    return Settings(**data)
+    settings = Settings(**data)
+    # 兴趣是个人数据，单独放不入库的 interests.yaml（模板见 interests.yaml.example）
+    if interests_path.exists():
+        settings.interests = Interests(**(yaml.safe_load(interests_path.read_text(encoding="utf-8")) or {}))
+    return settings
 
 
 def make_model(settings: Settings, name: str) -> OpenAIChatModel:

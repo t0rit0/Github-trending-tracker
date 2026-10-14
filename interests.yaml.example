@@ -1,0 +1,4 @@
+# 复制为 interests.yaml 后填写（interests.yaml 不入库）。日报按此过滤与排序：相关的前面、写详细。
+languages: []            # 如 [python, rust]
+topics: []               # 如 [agent, database]
+keywords: []             # 如 [llm, inference]
